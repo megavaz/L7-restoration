@@ -132,7 +132,7 @@ def _quick_restore(
 
     )
 
-    for target_image_number in restoration_order:
+    for target_image_number in tqdm(restoration_order, disable=not verbose):
         target_image = img_volume[target_image_number]
         target_mask = mask_volume[target_image_number]
         if np.count_nonzero(target_mask) == 0:
@@ -142,7 +142,7 @@ def _quick_restore(
         training_images = np.concatenate([img_volume[:target_image_number], img_volume[target_image_number + 1:]],
                                          axis=0)
         threshold = (target_image.shape[0] - window_size, target_image.shape[1] - window_size)
-        for i in tqdm(range(0, target_image.shape[0], window_size), disable=not verbose):
+        for i in range(0, target_image.shape[0], window_size):
             for j in range(0, target_image.shape[1], window_size):
                 if i > threshold[0]:
                     i = threshold[0]
@@ -192,7 +192,7 @@ def _restore_images(
         num_trees=210
 
     )
-    for target_image_number in restoration_order:
+    for target_image_number in tqdm(restoration_order, disable=not verbose):
         target_image = img_volume[target_image_number]
         target_mask = mask_volume[target_image_number]
         if np.count_nonzero(target_mask) == 0:
@@ -214,8 +214,7 @@ def _restore_images(
 
         training_images = np.concatenate([img_volume[:target_image_number], img_volume[target_image_number + 1:]],
                                          axis=0)
-        for train_mask_current, target_mask_current in tqdm(zip(train_masks, target_masks),
-                                                            total=len(target_masks), disable=not verbose):
+        for train_mask_current, target_mask_current in zip(train_masks, target_masks):
             horizontal_iteration = create_horizontal_iteration(
                 target_image[:, :, 0],
                 train_mask_current,
