@@ -85,36 +85,10 @@ def create_order(img):
     return order
 
 
-def create_horizontal_iteration(img, mask, epsilon=1, n=5, total_max_segments=65, max_covered_length=35):
-    total_max_segments -= 2
+def create_horizontal_iteration(img, mask, average_segment_length=1):
     horizontal_iteration = [0]
-    sliding_average = img[mask][0]
-    threshold = epsilon * np.std(img[mask])
-    for j in range(0, img.shape[-1]):
-        current_value = img[:, j][mask[:, j]]
-        if current_value.size == 0:
-            continue
-        current_value = np.average(current_value)
-        if np.abs(sliding_average - current_value) >= threshold:
-            horizontal_iteration.append(j)
-            sliding_average = current_value
-        else:
-            sliding_average = (sliding_average * (n - 1) + current_value) / n
-        if j - horizontal_iteration[-1] == max_covered_length:
-            horizontal_iteration.append(j)
-    try:
-        ratio = len(horizontal_iteration) / total_max_segments
-    except ZeroDivisionError:
-        return [0, 955]
-    if ratio > 1:
-        horizontal_iteration_temp = [0]
-        main_number, lagging_number = 0, 0
-        for elem in horizontal_iteration:
-            main_number += 1
-            if main_number // ratio > lagging_number:
-                lagging_number += 1
-                horizontal_iteration_temp.append(elem)
-        horizontal_iteration = horizontal_iteration_temp
+    coordinates = np.where(mask)[1][0]
+    horizontal_iteration = horizontal_iteration + [i for i in range(coordinates, img.shape[-1], average_segment_length)]
     horizontal_iteration.append(img.shape[-1])
     return horizontal_iteration
 
@@ -204,16 +178,12 @@ def _restore_images(
         img_volume,
         mask_volume,
         restoration_order,
-        epsilon=0.8,
-        max_length=150,
-        masks_to_sum=1,
-        average_segment_length=318,
+        average_segment_length=479,
         min_value=0.,
         max_value=1.,
         verbose=True,
         geospatial=True
 ):
-    total_max_segments = int(img_volume.shape[1] // average_segment_length)
     model = CatBoostRegressor(
         learning_rate=0.2,
         depth=4,
@@ -240,37 +210,16 @@ def _restore_images(
             train_mask_2[rst] = True
             target_masks.append(train_mask_2 * target_mask)
             train_masks.append((train_mask_2 ^ target_masks[-1]) * ~target_mask)
-        lengths = []
-        max_area = target_masks[0].shape[-1]
-        train_masks_aux = [np.zeros(train_masks[0].shape, dtype=bool)]
-        target_masks_aux = [np.zeros(train_masks[0].shape, dtype=bool)]
-        i = 0
-        for train_mask, target_mask in zip(train_masks, target_masks):
-            if i < masks_to_sum:
-                train_masks_aux[-1] = train_masks_aux[-1] + train_mask
-                target_masks_aux[-1] = target_masks_aux[-1] + target_mask
-                i += 1
-            else:
-                i = 1
-                train_masks_aux.append(train_mask)
-                target_masks_aux.append(target_mask)
-        train_masks = train_masks_aux
-        target_masks = target_masks_aux
-        for _ in range(len(target_masks)):
-            auxiliary = np.where(target_masks[_])[1]
-            lengths.append(auxiliary[-1] - auxiliary[0])
+
 
         training_images = np.concatenate([img_volume[:target_image_number], img_volume[target_image_number + 1:]],
                                          axis=0)
-        for train_mask_current, target_mask_current, current_area in tqdm(zip(train_masks, target_masks, lengths),
-                                                                          total=len(target_masks), disable=not verbose):
+        for train_mask_current, target_mask_current in tqdm(zip(train_masks, target_masks),
+                                                            total=len(target_masks), disable=not verbose):
             horizontal_iteration = create_horizontal_iteration(
                 target_image[:, :, 0],
                 train_mask_current,
-                epsilon=epsilon,
-                n=1,
-                total_max_segments=int(np.round(total_max_segments * current_area / max_area + 1)),
-                max_covered_length=max_length
+                average_segment_length=average_segment_length
             )
             for m in range(len(horizontal_iteration) - 1):
                 for channel in range(img_volume.shape[-1]):
@@ -319,7 +268,7 @@ def quick_restore(
         print('Mask must have 3 dimensions (num_images, height, width)!')
 
     try:
-        assert check_intersection(img_volume)
+        assert check_intersection(mask_volume)
     except AssertionError:
         print('Your images do not fully cover all missing pixels! Add more images to your batch.')
 
@@ -395,7 +344,6 @@ def main():
     parser.add_argument('--min', type=float, default=-1.)
     parser.add_argument('--max', type=float, default=1.)
     args = parser.parse_args()
-    print(args)
     img_volume, extension = parse_image(args.path_to_file)
     mask_volume, _ = parse_image(args.path_to_mask)
     if args.algorithm == 'quick':
