@@ -5,5 +5,13 @@ A new method to restore Landsat 7 SLC-off imagery based on gradient boosted deci
 
 ## Example
 
-<img src="/examples/orig.png" alt="Original data" style="height: 500px; width:500px;"/>
-<img src="/examples/orig_close.png" alt="Original data" style="height: 500px; width:500px;"/>
+<p align="center">
+  <img src="/examples/orig.png" width="400" title="hover text">
+  <img src="/examples/result.png" width="400" alt="accessibility text">
+</p>
+
+<p align="center">
+  <img src="/examples/orig_close.png" width="400" title="hover text">
+  <img src="/examples/result_close.png" width="400" alt="accessibility text">
+</p>
+
